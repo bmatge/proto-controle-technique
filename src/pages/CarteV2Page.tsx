@@ -62,7 +62,7 @@ const MAP_MARKUP = `
     <dsfr-data-map-layer id="poi" source="centres-filt" type="marker"
       lat-field="latitude" lon-field="longitude"
       tooltip-field="cct_denomination"
-      min-zoom="9" bbox cluster max-items="2000">
+      min-zoom="9" cluster max-items="2000">
     </dsfr-data-map-layer>
 
     <dsfr-data-map-popup for="poi" mode="panel-left"
