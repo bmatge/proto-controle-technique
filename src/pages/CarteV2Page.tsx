@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const MAP_MARKUP = `
 <!-- Sources & filtres pour les POI -->
@@ -7,7 +7,7 @@ const MAP_MARKUP = `
     <dsfr-data-source id="centres-raw" api-type="opendatasoft"
       base-url="https://data.economie.gouv.fr"
       dataset-id="prix-controle-technique"
-      server-side page-size="500">
+      server-side page-size="100">
     </dsfr-data-source>
     <dsfr-data-query id="centres-q" source="centres-raw" server-side></dsfr-data-query>
 
@@ -28,19 +28,18 @@ const MAP_MARKUP = `
 </div>
 
 <!-- Sources choroplèthe (statique, indépendantes des facettes en V1) -->
+<!-- public.opendatasoft.com pour passer la CSP connect-src (*.opendatasoft.com) -->
 <dsfr-data-source id="contours" api-type="opendatasoft"
-  base-url="https://hub.huwise.com"
+  base-url="https://public.opendatasoft.com"
   dataset-id="georef-france-departement"
-  select="dep_code, dep_name_upper, geo_shape"
-  limit="110">
+  select="dep_code, dep_name_upper, geo_shape">
 </dsfr-data-source>
 
 <dsfr-data-source id="prix-agg" api-type="opendatasoft"
   base-url="https://data.economie.gouv.fr"
   dataset-id="prix-controle-technique"
-  select="round(avg(prix_visite), 1) as prix_moyen, code_departement"
-  group-by="code_departement"
-  limit="110">
+  select="avg(prix_visite) as prix_moyen, code_departement"
+  group-by="code_departement">
 </dsfr-data-source>
 
 <dsfr-data-join id="dept-choro" left="contours" right="prix-agg"
@@ -89,13 +88,72 @@ const MAP_MARKUP = `
 </div>
 `;
 
+const EXPECTED_TAGS = [
+  'dsfr-data-source',
+  'dsfr-data-query',
+  'dsfr-data-search',
+  'dsfr-data-facets',
+  'dsfr-data-join',
+  'dsfr-data-map',
+  'dsfr-data-map-layer',
+  'dsfr-data-map-popup',
+];
+
+type DebugLine = { ts: string; kind: 'info' | 'ok' | 'err'; text: string };
+
 export function CarteV2Page() {
   const ref = useRef<HTMLDivElement>(null);
+  const [debug, setDebug] = useState<DebugLine[]>([]);
+
+  const log = (kind: DebugLine['kind'], text: string) => {
+    const ts = new Date().toISOString().slice(11, 19);
+    setDebug((d) => [...d, { ts, kind, text }]);
+  };
 
   useEffect(() => {
     const host = ref.current;
     if (!host || host.innerHTML.trim()) return;
+
+    log('info', `UA: ${navigator.userAgent.slice(0, 60)}…`);
+
+    const ce = (window as unknown as { customElements?: CustomElementRegistry }).customElements;
+    if (!ce) {
+      log('err', 'window.customElements indisponible');
+    } else {
+      for (const tag of EXPECTED_TAGS) {
+        const defined = ce.get(tag) !== undefined;
+        log(defined ? 'ok' : 'err', `${tag}: ${defined ? 'enregistré' : 'NON enregistré (script CDN KO ?)'}`);
+      }
+    }
+
+    const onLoaded = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      const id = target?.id || target?.tagName || '?';
+      const detail = (e as CustomEvent).detail;
+      const count = Array.isArray(detail) ? detail.length : '?';
+      log('ok', `dsfr-data-loaded sur #${id} (${count} items)`);
+    };
+    const onError = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      const id = target?.id || target?.tagName || '?';
+      const detail = (e as CustomEvent).detail;
+      const msg = detail instanceof Error ? detail.message : String(detail);
+      log('err', `dsfr-data-error sur #${id} : ${msg}`);
+    };
+    const onWinError = (e: ErrorEvent) => log('err', `JS: ${e.message}`);
+
+    document.addEventListener('dsfr-data-loaded', onLoaded);
+    document.addEventListener('dsfr-data-error', onError);
+    window.addEventListener('error', onWinError);
+
     host.innerHTML = MAP_MARKUP;
+    log('info', 'Markup injecté dans le DOM');
+
+    return () => {
+      document.removeEventListener('dsfr-data-loaded', onLoaded);
+      document.removeEventListener('dsfr-data-error', onError);
+      window.removeEventListener('error', onWinError);
+    };
   }, []);
 
   return (
@@ -103,6 +161,18 @@ export function CarteV2Page() {
       <div className="fr-container">
         <h1 className="fr-py-2w fr-mb-0">Carte des centres (V2 — ChartsBuilder)</h1>
       </div>
+
+      <div className="fr-container fr-mb-2w">
+        <details open style={{ background: '#f6f6f6', border: '1px solid #ddd', padding: '0.5rem 1rem', fontFamily: 'monospace', fontSize: 12 }}>
+          <summary><strong>Debug ChartsBuilder ({debug.length} events)</strong></summary>
+          {debug.map((d, i) => (
+            <div key={i} style={{ color: d.kind === 'err' ? '#c9191e' : d.kind === 'ok' ? '#18753c' : '#666' }}>
+              {d.ts} · {d.kind.toUpperCase()} · {d.text}
+            </div>
+          ))}
+        </details>
+      </div>
+
       <div ref={ref} />
     </>
   );
