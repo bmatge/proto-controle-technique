@@ -7,7 +7,7 @@ const MAP_MARKUP = `
     <dsfr-data-source id="centres-raw" api-type="opendatasoft"
       base-url="https://data.economie.gouv.fr"
       dataset-id="prix-controle-technique"
-      server-side page-size="500">
+      server-side page-size="100">
     </dsfr-data-source>
     <dsfr-data-query id="centres-q" source="centres-raw" server-side></dsfr-data-query>
 
@@ -28,19 +28,18 @@ const MAP_MARKUP = `
 </div>
 
 <!-- Sources choroplèthe (statique, indépendantes des facettes en V1) -->
+<!-- public.opendatasoft.com pour passer la CSP connect-src (*.opendatasoft.com) -->
 <dsfr-data-source id="contours" api-type="opendatasoft"
-  base-url="https://hub.huwise.com"
+  base-url="https://public.opendatasoft.com"
   dataset-id="georef-france-departement"
-  select="dep_code, dep_name_upper, geo_shape"
-  limit="110">
+  select="dep_code, dep_name_upper, geo_shape">
 </dsfr-data-source>
 
 <dsfr-data-source id="prix-agg" api-type="opendatasoft"
   base-url="https://data.economie.gouv.fr"
   dataset-id="prix-controle-technique"
-  select="round(avg(prix_visite), 1) as prix_moyen, code_departement"
-  group-by="code_departement"
-  limit="110">
+  select="avg(prix_visite) as prix_moyen, code_departement"
+  group-by="code_departement">
 </dsfr-data-source>
 
 <dsfr-data-join id="dept-choro" left="contours" right="prix-agg"
