@@ -1,38 +1,16 @@
 services:
-  prix-controle-technique:
+  web:
     build: .
-    container_name: prix-controle-technique
     restart: unless-stopped
-
-    # Réseau Traefik (même réseau que ecosystem)
-    networks:
-      - ecosystem-network
-
-    # Labels Traefik
+    networks: [proxy]
     labels:
-      - "traefik.enable=true"
+      - traefik.enable=true
+      - traefik.http.routers.${APP_NAME}.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.${APP_NAME}.entrypoints=websecure
+      - traefik.http.routers.${APP_NAME}.tls.certresolver=letsencrypt
+      - traefik.http.services.${APP_NAME}.loadbalancer.server.port=80
 
-      # Router HTTP (redirige vers HTTPS)
-      - "traefik.http.routers.prix-controle-technique-http.rule=Host(`controle-technique.matge.com`)"
-      - "traefik.http.routers.prix-controle-technique-http.entrypoints=web"
-      - "traefik.http.routers.prix-controle-technique-http.middlewares=redirect-to-https"
-
-      # Router HTTPS
-      - "traefik.http.routers.prix-controle-technique-https.rule=Host(`controle-technique.matge.com`)"
-      - "traefik.http.routers.prix-controle-technique-https.entrypoints=websecure"
-      - "traefik.http.routers.prix-controle-technique-https.tls=true"
-      - "traefik.http.routers.prix-controle-technique-https.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.prix-controle-technique-https.tls.options=anssi-strict@file"
-      - "traefik.http.routers.prix-controle-technique-https.middlewares=security-headers@file"
-
-      # Service
-      - "traefik.http.services.prix-controle-technique.loadbalancer.server.port=80"
-
-      # Middleware de redirection HTTPS
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
-
-# Réseau externe Traefik (même que le projet ecosystem)
+# Réseau Traefik partagé du lab VibeLab (spawn). APP_NAME / DOMAIN sont injectés par spawn.
 networks:
-  ecosystem-network:
+  proxy:
     external: true
